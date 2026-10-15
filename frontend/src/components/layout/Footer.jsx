@@ -89,6 +89,9 @@ function Footer() {
 
         <div className="border-t border-gray-200 pt-6 text-center dark:border-slate-800">
           <p>© 2026 SKD - Creando Sueños</p>
+          <p className="mt-1 text-xs">
+            Todos los derechos reservados. Desarrollado por Jeam Pierre Morales Henao.
+          </p>
           <div className="mt-3 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs">
             <Link
               to="/legal/terminos"
