@@ -97,10 +97,16 @@ public class ChatBotServiceImpl implements ChatBotService {
                 "parts", List.of(Map.of("text", SYSTEM_PROMPT))
         ));
         body.put("contents", contents);
-        // Respuestas cortas y rápidas (el prompt pide máximo un párrafo).
+        // Los modelos Gemini 3.x ("thinking") descuentan los tokens de razonamiento
+        // del mismo presupuesto que maxOutputTokens. Con 350 se gastaban ~290 en
+        // "pensar" y la respuesta visible se cortaba a mitad de palabra
+        // (finishReason=MAX_TOKENS). Se desactiva el razonamiento (thinkingBudget=0)
+        // para respuestas completas y mucho más rápidas, y se deja holgura en
+        // maxOutputTokens por si el modelo ignora thinkingBudget.
         body.put("generationConfig", Map.of(
-                "maxOutputTokens", 350,
-                "temperature", 0.6
+                "maxOutputTokens", 1000,
+                "temperature", 0.6,
+                "thinkingConfig", Map.of("thinkingBudget", 0)
         ));
 
         WebClient client = webClientBuilder.build();
@@ -175,12 +181,33 @@ public class ChatBotServiceImpl implements ChatBotService {
             }
 
             List<Map<String, Object>> parts = (List<Map<String, Object>>) content.get("parts");
-            if (parts == null || parts.isEmpty() || parts.get(0).get("text") == null) {
-                log.error("Gemini content sin parts/text: {}", content);
+            if (parts == null || parts.isEmpty()) {
+                log.error("Gemini content sin parts: {}", content);
                 throw new BadRequestException("Ocurrió un error al procesar tu mensaje. Inténtalo de nuevo más tarde.");
             }
 
-            String texto = (String) parts.get(0).get("text");
+            // Se concatenan solo las partes de texto "visibles"; se descartan las
+            // partes de razonamiento (thought=true) que algunos modelos devuelven.
+            StringBuilder sb = new StringBuilder();
+            for (Map<String, Object> part : parts) {
+                if (Boolean.TRUE.equals(part.get("thought"))) {
+                    continue;
+                }
+                Object t = part.get("text");
+                if (t instanceof String s && !s.isBlank()) {
+                    sb.append(s);
+                }
+            }
+            String texto = sb.toString().trim();
+            if (texto.isEmpty()) {
+                log.error("Gemini content sin texto utilizable: {}", content);
+                throw new BadRequestException("Ocurrió un error al procesar tu mensaje. Inténtalo de nuevo más tarde.");
+            }
+
+            Object finishReason = candidates.get(0).get("finishReason");
+            if ("MAX_TOKENS".equals(finishReason)) {
+                log.warn("Respuesta de Gemini truncada por MAX_TOKENS; considera subir maxOutputTokens.");
+            }
             return new ChatResponse(texto);
         } catch (BadRequestException | TooManyRequestsException e) {
             throw e;
