@@ -174,3 +174,4 @@ Se usa un modelo tipo GitFlow:
 - `main` — código estable, listo para producción.
 - `develop` — rama de integración; aquí se juntan los cambios antes de ir a producción.
 - `feature-*` — una rama por tarea/funcionalidad. Se crea desde `develop` y, al terminar, se abre un **Pull Request** de vuelta hacia `develop`.
+# e-commerce
